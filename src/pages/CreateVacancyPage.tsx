@@ -1,72 +1,69 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import api from '../api/axios'
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import api from '../api/axios';
 
 export default function CreateVacancyPage() {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
   const [form, setForm] = useState({
-    title: '', description: '', company: '', location: '', salary: '', employmentType: ''
-  })
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+    title: '', description: '', company: '', location: '', salary: '', employmentType: '', requiredSkills: ''
+  });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
+    e.preventDefault();
+    setLoading(true);
+    setError('');
     try {
-      await api.post('/api/vacancies', form)
-      navigate('/vacancies')
+      await api.post('/api/vacancies', form);
+      navigate('/vacancies');
     } catch {
-      setError('Помилка при створенні вакансії')
+      setError('Помилка при створенні вакансії');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div style={styles.page}>
-      <nav style={styles.nav}>
-        <span style={styles.logo}>💼 Job Platform</span>
-        <button style={styles.backBtn} onClick={() => navigate('/vacancies')}>← Назад</button>
-      </nav>
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <h2 style={styles.title}>Нова вакансія</h2>
-          {error && <div style={styles.error}>{error}</div>}
-          <form onSubmit={handleSubmit}>
-            <div style={styles.field}>
-              <label style={styles.label}>Назва посади</label>
-              <input style={styles.input} value={form.title} placeholder="Junior Kotlin Developer"
+    <div style={s.container}>
+      <div style={s.headerGroup}>
+        <Link to="/vacancies" style={s.backBtn}>← Взад до вакансій</Link>
+        <h1 style={s.pageTitle}>Нова вакансія</h1>
+        <p style={s.pageDesc}>Створіть ідеальну пропозицію, щоб знайти найкращого кандидата.</p>
+      </div>
+
+      <div style={s.card}>
+        {error && <div style={s.errorBox}>{error}</div>}
+        
+        <form onSubmit={handleSubmit} style={s.form}>
+          <div style={s.formGrid}>
+            <div style={s.fieldFull}>
+              <label style={s.label}>Назва посади <span>*</span></label>
+              <input style={s.input} value={form.title} placeholder="Пр: Senior React Developer"
                 onChange={e => setForm({...form, title: e.target.value})} required />
             </div>
-            <div style={styles.field}>
-              <label style={styles.label}>Компанія</label>
-              <input style={styles.input} value={form.company} placeholder="Tech UA"
+
+            <div style={s.field}>
+              <label style={s.label}>Компанія <span>*</span></label>
+              <input style={s.input} value={form.company} placeholder="Tech Ukraine LLC"
                 onChange={e => setForm({...form, company: e.target.value})} required />
             </div>
-            <div style={styles.row}>
-              <div style={styles.field}>
-                <label style={styles.label}>Місто</label>
-                <input style={styles.input} value={form.location} placeholder="Київ"
-                  onChange={e => setForm({...form, location: e.target.value})} required />
-              </div>
-              <div style={styles.field}>
-                <label style={styles.label}>Зарплата</label>
-                <input style={styles.input} value={form.salary} placeholder="1000-2000$"
-                  onChange={e => setForm({...form, salary: e.target.value})} />
-              </div>
+            
+            <div style={s.field}>
+              <label style={s.label}>Місто (або Remote) <span>*</span></label>
+              <input style={s.input} value={form.location} placeholder="Київ / Віддалено"
+                onChange={e => setForm({...form, location: e.target.value})} required />
             </div>
-            <div style={styles.field}>
-              <label style={styles.label}>Опис вакансії</label>
-              <textarea style={styles.textarea} value={form.description}
-                placeholder="Опишіть вимоги, обов'язки та умови роботи..."
-                onChange={e => setForm({...form, description: e.target.value})}
-                required rows={6} />
+
+            <div style={s.field}>
+              <label style={s.label}>Зарплатна вилка</label>
+              <input style={s.input} value={form.salary} placeholder="Пр: $3000 - $4500"
+                onChange={e => setForm({...form, salary: e.target.value})} />
             </div>
-            <div style={styles.field}>
-              <label style={styles.label}>Тип зайнятості</label>
-              <select style={styles.input} value={form.employmentType}
+
+            <div style={s.field}>
+              <label style={s.label}>Тип зайнятості</label>
+              <select style={s.input} value={form.employmentType}
                 onChange={e => setForm({...form, employmentType: e.target.value})}>
                 <option value="">Оберіть...</option>
                 <option value="Повна зайнятість">Повна зайнятість</option>
@@ -75,29 +72,58 @@ export default function CreateVacancyPage() {
                 <option value="Стажування">Стажування</option>
               </select>
             </div>
-            <button style={styles.button} type="submit" disabled={loading}>
+
+            <div style={s.fieldFull}>
+              <label style={s.label}>Необхідні навички</label>
+              <p style={s.hint}>Розділіть навички комою (Пр: React, TypeScript, Node.js)</p>
+              <input style={s.input} value={form.requiredSkills} placeholder="React, TypeScript..."
+                onChange={e => setForm({...form, requiredSkills: e.target.value})} />
+            </div>
+
+            <div style={s.fieldFull}>
+              <label style={s.label}>Опис вакансії <span>*</span></label>
+              <textarea style={s.textarea} value={form.description}
+                placeholder="Опишіть обов'язки, вимоги до кандидата та пропоновані умови..."
+                onChange={e => setForm({...form, description: e.target.value})}
+                required rows={8} />
+            </div>
+          </div>
+          
+          <div style={s.formFooter}>
+            <button style={{ ...s.submitBtn, opacity: loading ? 0.7 : 1 }} type="submit" disabled={loading}>
               {loading ? 'Публікація...' : 'Опублікувати вакансію'}
             </button>
-          </form>
-        </div>
+          </div>
+        </form>
       </div>
     </div>
-  )
+  );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  page: { minHeight: '100vh', background: '#f5f5f5' },
-  nav: { background: 'white', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
-  logo: { fontSize: '1.25rem', fontWeight: 700, color: '#4f46e5' },
-  backBtn: { padding: '0.4rem 1rem', background: '#f3f4f6', border: 'none', borderRadius: '6px', cursor: 'pointer' },
-  container: { maxWidth: '700px', margin: '2rem auto', padding: '0 1rem' },
-  card: { background: 'white', borderRadius: '12px', padding: '2rem', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
-  title: { marginBottom: '1.5rem', color: '#333' },
-  row: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' },
-  field: { marginBottom: '1rem' },
-  label: { display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: '#555' },
-  input: { width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '8px', fontSize: '1rem', boxSizing: 'border-box' },
-  textarea: { width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '8px', fontSize: '1rem', boxSizing: 'border-box', resize: 'vertical' },
-  button: { width: '100%', padding: '0.75rem', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1rem', cursor: 'pointer', marginTop: '0.5rem' },
-  error: { background: '#fee2e2', color: '#dc2626', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem' },
-}
+const s: Record<string, React.CSSProperties> = {
+  container: { padding: '3rem 1.5rem', maxWidth: '850px', margin: '0 auto' },
+  
+  headerGroup: { marginBottom: '2rem' },
+  backBtn: { display: 'inline-block', color: '#4f46e5', textDecoration: 'none', fontWeight: 600, fontSize: '0.95rem', marginBottom: '1rem' },
+  pageTitle: { fontSize: '2.25rem', fontWeight: 800, color: '#111827', margin: '0 0 0.5rem', letterSpacing: '-0.02em' },
+  pageDesc: { color: '#6b7280', fontSize: '1.05rem', margin: 0 },
+
+  card: { background: 'white', padding: '2.5rem', borderRadius: '20px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01)', border: '1px solid #e5e7eb' },
+  
+  errorBox: { background: '#fef2f2', color: '#b91c1c', padding: '1rem', borderRadius: '10px', marginBottom: '2rem', border: '1px solid #fecaca', fontSize: '0.95rem', fontWeight: 500 },
+
+  form: { display: 'flex', flexDirection: 'column' },
+  formGrid: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '1.5rem', marginBottom: '2rem' },
+  
+  field: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
+  fieldFull: { gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '0.5rem' },
+  
+  label: { fontWeight: 600, color: '#374151', fontSize: '0.95rem' },
+  hint: { margin: '-0.25rem 0 0.25rem', color: '#9ca3af', fontSize: '0.85rem' },
+  
+  input: { width: '100%', padding: '0.875rem 1rem', border: '1px solid #d1d5db', borderRadius: '10px', fontSize: '1rem', boxSizing: 'border-box', outline: 'none', transition: 'border-color 0.2s', color: '#111827', background: '#f9fafb' },
+  textarea: { width: '100%', padding: '1rem', border: '1px solid #d1d5db', borderRadius: '10px', fontSize: '1rem', boxSizing: 'border-box', outline: 'none', transition: 'border-color 0.2s', color: '#111827', background: '#f9fafb', fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.6 },
+  
+  formFooter: { display: 'flex', justifyContent: 'flex-end', paddingTop: '1.5rem', borderTop: '1px solid #f3f4f6' },
+  submitBtn: { padding: '1rem 2.5rem', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '10px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', transition: 'background-color 0.2s', boxShadow: '0 4px 6px -1px rgba(79,70,229,0.3)' },
+};

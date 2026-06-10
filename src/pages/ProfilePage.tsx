@@ -1,192 +1,228 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import api from '../api/axios'
+import { useEffect, useState } from 'react';
+import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 
 interface Profile {
-  userId: number
-  firstName: string
-  lastName: string
-  email: string
-  role: string
-  skills: string
-  experience: string
-  education: string
-  resumeText: string
+  userId: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: string;
+  skills: string; 
+  experience: string;
+  education: string;
+  resumeText: string;
 }
 
 export default function ProfilePage() {
-  const navigate = useNavigate()
-  const [profile, setProfile] = useState<Profile | null>(null)
+  const { user } = useAuth();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  
   const [form, setForm] = useState({
-    firstName: '', lastName: '', skills: '',
+    firstName: '', lastName: '', 
     experience: '', education: '', resumeText: ''
-  })
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState(false)
-  const [error, setError] = useState('')
+  });
+  
+  const [skillsList, setSkillsList] = useState<string[]>([]);
+  const [skillInput, setSkillInput] = useState('');
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
-    if (!localStorage.getItem('token')) { navigate('/login'); return }
-    api.get('/api/profile').then(res => {
-      setProfile(res.data)
-      setForm({
-        firstName: res.data.firstName,
-        lastName: res.data.lastName,
-        skills: res.data.skills,
-        experience: res.data.experience,
-        education: res.data.education,
-        resumeText: res.data.resumeText
+    api.get('/api/profile')
+      .then(res => {
+        const data = res.data;
+        setProfile(data);
+        setForm({
+          firstName: data.firstName || '',
+          lastName: data.lastName || '',
+          experience: data.experience || '',
+          education: data.education || '',
+          resumeText: data.resumeText || ''
+        });
+        if (data.skills) {
+          setSkillsList(data.skills.split(',').map((s: string) => s.trim()).filter(Boolean));
+        }
       })
-    }).finally(() => setLoading(false))
-  }, [])
+      .catch(err => {
+        setMessage({ text: 'Помилка завантаження профілю', type: 'error' });
+        console.error(err);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-    setSuccess(false)
-    setError('')
-    try {
-      const res = await api.put('/api/profile', form)
-      // Оновлюємо localStorage
-      const user = JSON.parse(localStorage.getItem('user') || '{}')
-      user.firstName = form.firstName
-      user.lastName = form.lastName
-      localStorage.setItem('user', JSON.stringify(user))
-      setProfile(res.data)
-      setSuccess(true)
-      setTimeout(() => setSuccess(false), 3000)
-    } catch {
-      setError('Помилка при збереженні')
-    } finally {
-      setSaving(false)
+  const handleAddSkill = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && skillInput.trim()) {
+      e.preventDefault();
+      if (!skillsList.includes(skillInput.trim())) {
+        setSkillsList([...skillsList, skillInput.trim()]);
+      }
+      setSkillInput('');
     }
-  }
+  };
 
-  if (loading) return <div style={styles.center}>Завантаження...</div>
+  const removeSkill = (skillToRemove: string) => {
+    setSkillsList(skillsList.filter(skill => skill !== skillToRemove));
+  };
 
-  const isEmployer = profile?.role === 'EMPLOYER'
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setMessage(null);
+    try {
+      const payload = {
+        ...form,
+        skills: skillsList.join(', ')
+      };
+      
+      await api.put('/api/profile', payload);
+      setMessage({ text: 'Профіль успішно оновлено!', type: 'success' });
+    } catch {
+      setMessage({ text: 'Помилка при збереженні', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return (
+    <div style={s.center}>
+      <div style={s.spinner} />
+      <p style={{ color: '#6b7280', marginTop: '1rem' }}>Завантажуємо профіль...</p>
+    </div>
+  );
+
+  const isCandidate = user?.role === 'JOB_SEEKER' || profile?.role === 'JOB_SEEKER';
 
   return (
-    <div style={styles.page}>
-      <nav style={styles.nav}>
-        <span style={styles.logo}>💼 Job Platform</span>
-        <button style={styles.backBtn} onClick={() => navigate('/vacancies')}>← Назад</button>
-      </nav>
-
-      <div style={styles.container}>
-        {/* Шапка профілю */}
-        <div style={styles.headerCard}>
-          <div style={styles.avatar}>
-            {form.firstName?.[0]}{form.lastName?.[0]}
+    <div style={s.container}>
+      <div style={s.headerWrap}>
+        <div style={s.headerInner}>
+          <div style={s.avatarLg}>
+             {profile?.firstName?.[0] || profile?.email?.[0]?.toUpperCase() || 'U'}
           </div>
           <div>
-            <h2 style={styles.name}>{form.firstName} {form.lastName}</h2>
-            <p style={styles.email}>{profile?.email}</p>
-            <span style={styles.badge}>
-              {isEmployer ? '🏢 Роботодавець' : '👤 Шукач роботи'}
-            </span>
+            <h1 style={s.title}>{form.firstName} {form.lastName}</h1>
+            <div style={s.headerBadges}>
+              <span style={s.emailBadge}>📧 {profile?.email}</span>
+              <span style={s.roleBadge}>
+                {profile?.role === 'EMPLOYER' ? '🏢 Роботодавець' : '👤 Шукач роботи'}
+              </span>
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Форма */}
-        <div style={styles.card}>
-          <h3 style={styles.sectionTitle}>✏️ Редагувати профіль</h3>
-
-          {success && <div style={styles.success}>✅ Профіль збережено!</div>}
-          {error && <div style={styles.error}>{error}</div>}
-
-          <form onSubmit={handleSubmit}>
-            {/* Основні дані */}
-            <div style={styles.row}>
-              <div style={styles.field}>
-                <label style={styles.label}>Ім'я</label>
-                <input style={styles.input} value={form.firstName}
-                  onChange={e => setForm({...form, firstName: e.target.value})} required />
-              </div>
-              <div style={styles.field}>
-                <label style={styles.label}>Прізвище</label>
-                <input style={styles.input} value={form.lastName}
-                  onChange={e => setForm({...form, lastName: e.target.value})} required />
-              </div>
-            </div>
-
-            {/* Тільки для кандидата */}
-            {!isEmployer && (
-              <>
-                <div style={styles.field}>
-                  <label style={styles.label}>🛠 Навички (через кому)</label>
-                  <input style={styles.input}
-                    placeholder="Kotlin, React, Spring Boot, SQL..."
-                    value={form.skills}
-                    onChange={e => setForm({...form, skills: e.target.value})} />
-                  {form.skills && (
-                    <div style={styles.tags}>
-                      {form.skills.split(',').map((s, i) => (
-                        <span key={i} style={styles.tag}>{s.trim()}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div style={styles.field}>
-                  <label style={styles.label}>💼 Досвід роботи</label>
-                  <textarea style={styles.textarea} rows={4}
-                    placeholder="Опишіть ваш досвід роботи..."
-                    value={form.experience}
-                    onChange={e => setForm({...form, experience: e.target.value})} />
-                </div>
-
-                <div style={styles.field}>
-                  <label style={styles.label}>🎓 Освіта</label>
-                  <textarea style={styles.textarea} rows={3}
-                    placeholder="Університет, спеціальність, рік закінчення..."
-                    value={form.education}
-                    onChange={e => setForm({...form, education: e.target.value})} />
-                </div>
-
-                <div style={styles.field}>
-                  <label style={styles.label}>📝 Про себе</label>
-                  <textarea style={styles.textarea} rows={3}
-                    placeholder="Короткий опис — хто ви і чого шукаєте..."
-                    value={form.resumeText}
-                    onChange={e => setForm({...form, resumeText: e.target.value})} />
-                </div>
-              </>
-            )}
-
-            <button style={styles.button} type="submit" disabled={saving}>
-              {saving ? 'Збереження...' : '💾 Зберегти зміни'}
-            </button>
-          </form>
+      <div style={s.card}>
+        <div style={s.cardHeader}>
+          <h2 style={s.sectionTitle}>Особиста інформація</h2>
+          <p style={s.sectionDesc}>Оновіть ваші дані, щоб роботодавці могли дізнатись про вас більше.</p>
         </div>
+
+        {message && (
+          <div style={message.type === 'success' ? s.success : s.error}>
+            {message.type === 'success' ? '✅ ' : '❌ '}{message.text}
+          </div>
+        )}
+
+        <form onSubmit={handleSave} style={s.form}>
+          <div style={s.row}>
+            <div style={s.field}>
+              <label style={s.label}>Ім'я</label>
+              <input style={s.input} value={form.firstName} onChange={e => setForm({...form, firstName: e.target.value})} required />
+            </div>
+            <div style={s.field}>
+              <label style={s.label}>Прізвище</label>
+              <input style={s.input} value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} required />
+            </div>
+          </div>
+
+          {isCandidate && (
+            <>
+              <div style={s.field}>
+                <label style={s.label}>Навички</label>
+                <p style={s.hint}>Введіть навичку та натисніть Enter</p>
+                <div style={s.skillsContainer}>
+                  {skillsList.map(skill => (
+                    <span key={skill} style={s.skillBadge}>
+                      {skill} 
+                      <button type="button" onClick={() => removeSkill(skill)} style={s.removeSkillBtn}>&times;</button>
+                    </span>
+                  ))}
+                  <input 
+                    style={s.skillInput} 
+                    value={skillInput} 
+                    onChange={e => setSkillInput(e.target.value)} 
+                    onKeyDown={handleAddSkill} 
+                    placeholder="Наприклад: React, Kotlin, SQL..." 
+                  />
+                </div>
+              </div>
+
+              <div style={s.field}>
+                <label style={s.label}>Досвід роботи</label>
+                <textarea style={s.textarea} value={form.experience} onChange={e => setForm({...form, experience: e.target.value})} rows={4} placeholder="Опишіть ваш попередній досвід роботи, обов'язки та досягнення..."/>
+              </div>
+
+              <div style={s.field}>
+                <label style={s.label}>Освіта</label>
+                <textarea style={s.textarea} value={form.education} onChange={e => setForm({...form, education: e.target.value})} rows={2} placeholder="Навчальний заклад, ступінь, спеціальність, роки навчання..."/>
+              </div>
+
+              <div style={s.field}>
+                <label style={s.label}>Про себе (Резюме)</label>
+                <textarea style={s.textarea} value={form.resumeText} onChange={e => setForm({...form, resumeText: e.target.value})} rows={5} placeholder="Коротко розкажіть про свої сильні сторони, цілі та мотивацію..."/>
+              </div>
+            </>
+          )}
+
+          <div style={s.submitRow}>
+             <button type="submit" style={{ ...s.button, opacity: saving ? 0.7 : 1 }} disabled={saving}>
+              {saving ? 'Збереження...' : 'Зберегти зміни'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
-  )
+  );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  page: { minHeight: '100vh', background: '#f5f5f5' },
-  center: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' },
-  nav: { background: 'white', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
-  logo: { fontSize: '1.25rem', fontWeight: 700, color: '#4f46e5' },
-  backBtn: { padding: '0.4rem 1rem', background: '#f3f4f6', border: 'none', borderRadius: '6px', cursor: 'pointer' },
-  container: { maxWidth: '700px', margin: '2rem auto', padding: '0 1rem' },
-  headerCard: { background: 'white', borderRadius: '12px', padding: '1.5rem', marginBottom: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: '1.5rem' },
-  avatar: { width: '70px', height: '70px', borderRadius: '50%', background: '#4f46e5', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 700, flexShrink: 0 },
-  name: { fontSize: '1.3rem', fontWeight: 700, color: '#1a1a2e', marginBottom: '0.25rem' },
-  email: { color: '#888', fontSize: '0.9rem', marginBottom: '0.5rem' },
-  badge: { background: '#ede9fe', color: '#4f46e5', padding: '0.2rem 0.75rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600 },
-  card: { background: 'white', borderRadius: '12px', padding: '2rem', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
-  sectionTitle: { fontSize: '1.1rem', fontWeight: 700, marginBottom: '1.5rem', color: '#1a1a2e' },
-  success: { background: '#d1fae5', color: '#065f46', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem' },
-  error: { background: '#fee2e2', color: '#dc2626', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem' },
-  row: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' },
-  field: { marginBottom: '1.25rem' },
-  label: { display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: '#555', fontSize: '0.9rem' },
-  input: { width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '8px', fontSize: '1rem', boxSizing: 'border-box' },
-  textarea: { width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '8px', fontSize: '1rem', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' },
-  tags: { display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' },
-  tag: { background: '#ede9fe', color: '#4f46e5', padding: '0.2rem 0.75rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 500 },
-  button: { width: '100%', padding: '0.75rem', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1rem', cursor: 'pointer', fontWeight: 600 },
-}
+const s: Record<string, React.CSSProperties> = {
+  container: { padding: '2rem 1.5rem', maxWidth: '850px', margin: '0 auto' },
+  center: { textAlign: 'center', minHeight: '50vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' },
+  spinner: { width: '40px', height: '40px', border: '3px solid #e5e7eb', borderTop: '3px solid #4f46e5', borderRadius: '50%', animation: 'spin 0.8s linear infinite' },
+  
+  headerWrap: { marginBottom: '2rem' },
+  headerInner: { display: 'flex', alignItems: 'center', gap: '1.5rem', background: 'white', padding: '2rem', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e5e7eb' },
+  avatarLg: { width: '80px', height: '80px', borderRadius: '20px', background: 'linear-gradient(135deg, #a5b4fc, #818cf8)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', fontWeight: 800, flexShrink: 0, boxShadow: '0 4px 12px rgba(129, 140, 248, 0.4)' },
+  title: { margin: '0 0 0.5rem', fontSize: '1.75rem', fontWeight: 800, color: '#111827', letterSpacing: '-0.02em' },
+  headerBadges: { display: 'flex', gap: '0.75rem', flexWrap: 'wrap' },
+  emailBadge: { background: '#f3f4f6', color: '#4b5563', padding: '0.35rem 0.85rem', borderRadius: '999px', fontSize: '0.875rem', fontWeight: 500 },
+  roleBadge: { background: '#eef2ff', color: '#4f46e5', padding: '0.35rem 0.85rem', borderRadius: '999px', fontSize: '0.875rem', fontWeight: 600 },
+
+  card: { background: 'white', padding: '2.5rem', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', border: '1px solid #e5e7eb' },
+  cardHeader: { marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid #f3f4f6' },
+  sectionTitle: { margin: '0 0 0.5rem', fontSize: '1.25rem', fontWeight: 700, color: '#111827' },
+  sectionDesc: { margin: 0, color: '#6b7280', fontSize: '0.95rem' },
+
+  form: { display: 'flex', flexDirection: 'column', gap: '1.5rem' },
+  row: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' },
+  field: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
+  label: { fontWeight: 600, color: '#374151', fontSize: '0.9rem' },
+  hint: { margin: '-0.25rem 0 0', color: '#9ca3af', fontSize: '0.8rem' },
+  
+  input: { width: '100%', padding: '0.875rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.95rem', boxSizing: 'border-box', outline: 'none', transition: 'border-color 0.2s', color: '#111827' },
+  textarea: { width: '100%', padding: '0.875rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.95rem', boxSizing: 'border-box', outline: 'none', transition: 'border-color 0.2s', color: '#111827', fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.6 },
+  
+  skillsContainer: { display: 'flex', flexWrap: 'wrap', gap: '0.5rem', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '8px', minHeight: '48px', alignItems: 'center', transition: 'border-color 0.2s' },
+  skillBadge: { background: '#eef2ff', color: '#4f46e5', padding: '0.35rem 0.6rem', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1px solid #c7d2fe' },
+  removeSkillBtn: { background: 'none', border: 'none', color: '#818cf8', cursor: 'pointer', fontSize: '1.1rem', padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  skillInput: { border: 'none', outline: 'none', flex: 1, minWidth: '150px', fontSize: '0.95rem', padding: '0.25rem', color: '#111827', background: 'transparent' },
+  
+  submitRow: { marginTop: '1rem', display: 'flex', justifyContent: 'flex-end' },
+  button: { background: '#4f46e5', color: 'white', border: 'none', padding: '0.875rem 2rem', borderRadius: '8px', fontSize: '1rem', fontWeight: 600, cursor: 'pointer', transition: 'background-color 0.2s', boxShadow: '0 4px 6px -1px rgba(79, 70, 229, 0.3)' },
+  
+  success: { background: '#ecfdf5', color: '#065f46', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid #a7f3d0', fontSize: '0.95rem', fontWeight: 500 },
+  error: { background: '#fef2f2', color: '#991b1b', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid #fecaca', fontSize: '0.95rem', fontWeight: 500 }
+};

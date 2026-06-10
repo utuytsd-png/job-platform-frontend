@@ -1,248 +1,288 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import api from '../api/axios'
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import api from '../api/axios';
 
 interface User {
-  id: number
-  email: string
-  firstName: string
-  lastName: string
-  role: string
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
 }
 
 interface Vacancy {
-  id: number
-  title: string
-  company: string
-  location: string
-  employerEmail: string
-  createdAt: string
+  id: number;
+  title: string;
+  company: string;
+  location: string;
+  employerEmail: string;
 }
 
 interface Stats {
-  totalUsers: number
-  totalVacancies: number
-  jobSeekers: number
-  employers: number
+  totalUsers: number;
+  totalVacancies: number;
+  jobSeekers: number;
+  employers: number;
 }
 
 export default function AdminPage() {
-  const navigate = useNavigate()
-  const [tab, setTab] = useState<'stats' | 'users' | 'vacancies'>('stats')
-  const [users, setUsers] = useState<User[]>([])
-  const [vacancies, setVacancies] = useState<Vacancy[]>([])
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const user = JSON.parse(localStorage.getItem('user') || '{}')
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<'stats' | 'users' | 'vacancies'>('stats');
+  const [users, setUsers] = useState<User[]>([]);
+  const [vacancies, setVacancies] = useState<Vacancy[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!localStorage.getItem('token')) { navigate('/login'); return }
-    if (user.role !== 'ADMIN') { navigate('/vacancies'); return }
-    loadAll()
-  }, [])
+    loadAll();
+  }, []);
 
   const loadAll = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       const [s, u, v] = await Promise.all([
         api.get('/api/admin/stats'),
         api.get('/api/admin/users'),
         api.get('/api/admin/vacancies')
-      ])
-      setStats(s.data)
-      setUsers(u.data)
-      setVacancies(v.data)
+      ]);
+      setStats(s.data);
+      setUsers(u.data);
+      setVacancies(v.data);
+    } catch (e) {
+      console.error(e);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const deleteUser = async (id: number) => {
-    if (!confirm('Видалити користувача?')) return
-    await api.delete(`/api/admin/users/${id}`)
-    setUsers(prev => prev.filter(u => u.id !== id))
-    setStats(prev => prev ? { ...prev, totalUsers: prev.totalUsers - 1 } : prev)
-  }
+    if (!window.confirm('Ви впевнені, що хочете видалити цього користувача?')) return;
+    try {
+      await api.delete(`/api/admin/users/${id}`);
+      setUsers(prev => prev.filter(u => u.id !== id));
+      if (stats) setStats({ ...stats, totalUsers: stats.totalUsers - 1 });
+    } catch (e) {
+      alert('Помилка видалення');
+    }
+  };
 
   const deleteVacancy = async (id: number) => {
-    if (!confirm('Видалити вакансію?')) return
-    await api.delete(`/api/admin/vacancies/${id}`)
-    setVacancies(prev => prev.filter(v => v.id !== id))
-    setStats(prev => prev ? { ...prev, totalVacancies: prev.totalVacancies - 1 } : prev)
-  }
+    if (!window.confirm('Ви впевнені, що хочете видалити цю вакансію?')) return;
+    try {
+      await api.delete(`/api/admin/vacancies/${id}`);
+      setVacancies(prev => prev.filter(v => v.id !== id));
+      if (stats) setStats({ ...stats, totalVacancies: stats.totalVacancies - 1 });
+    } catch (e) {
+      alert('Помилка видалення');
+    }
+  };
 
-  const roleColor = (role: string) =>
-    role === 'ADMIN' ? '#7c3aed' : role === 'EMPLOYER' ? '#0369a1' : '#065f46'
-
-  const roleBg = (role: string) =>
-    role === 'ADMIN' ? '#ede9fe' : role === 'EMPLOYER' ? '#e0f2fe' : '#d1fae5'
-
-  const roleLabel = (role: string) =>
-    role === 'ADMIN' ? '👑 Адмін' : role === 'EMPLOYER' ? '🏢 Роботодавець' : '👤 Кандидат'
+  const getRoleBadge = (role: string) => {
+    switch(role) {
+      case 'ADMIN': return { label: '👑 Адміністратор', bg: '#f3e8ff', color: '#7e22ce' };
+      case 'EMPLOYER': return { label: '🏢 Роботодавець', bg: '#dbeafe', color: '#1e40af' };
+      default: return { label: '👤 Кандидат', bg: '#dcfce7', color: '#166534' };
+    }
+  };
 
   return (
-    <div style={styles.page}>
-      {/* Navbar */}
-      <nav style={styles.nav}>
-        <span style={styles.logo}>💼 Job Platform</span>
-        <div style={styles.navRight}>
-          <span style={styles.adminBadge}>👑 Адмін панель</span>
-          <button style={styles.logoutBtn} onClick={() => {
-            localStorage.clear(); navigate('/login')
-          }}>Вийти</button>
+    <div style={s.page}>
+      <div style={s.container}>
+        <div style={s.header}>
+          <h1 style={s.title}>Панель адміністратора</h1>
+          <p style={s.subtitle}>Керуйте користувачами, вакансіями та переглядайте статистику платформи.</p>
         </div>
-      </nav>
 
-      <div style={styles.container}>
-        <h1 style={styles.title}>Адміністративна панель</h1>
-
-        {/* Вкладки */}
-        <div style={styles.tabs}>
-          {(['stats', 'users', 'vacancies'] as const).map(t => (
-            <button key={t} style={tab === t ? styles.tabActive : styles.tab}
-              onClick={() => setTab(t)}>
-              {t === 'stats' ? '📊 Статистика'
-             : t === 'users' ? `👥 Користувачі (${users.length})`
-             : `📋 Вакансії (${vacancies.length})`}
+        <div style={s.tabsWrap}>
+          <div style={s.tabs}>
+            <button style={{ ...s.tab, ...(tab === 'stats' ? s.tabActive : {}) }} onClick={() => setTab('stats')}>
+              <span style={s.tabIcon}>📊</span> Огляд платформи
             </button>
-          ))}
+            <button style={{ ...s.tab, ...(tab === 'users' ? s.tabActive : {}) }} onClick={() => setTab('users')}>
+              <span style={s.tabIcon}>👥</span> Всі користувачі
+              <span style={s.tabBadge}>{users.length}</span>
+            </button>
+            <button style={{ ...s.tab, ...(tab === 'vacancies' ? s.tabActive : {}) }} onClick={() => setTab('vacancies')}>
+              <span style={s.tabIcon}>📋</span> Всі вакансії
+              <span style={s.tabBadge}>{vacancies.length}</span>
+            </button>
+          </div>
         </div>
 
         {loading ? (
-          <p style={styles.center}>Завантаження...</p>
+          <div style={s.center}>
+            <div style={s.spinner} />
+            <p style={{ color: '#6b7280', marginTop: '1rem' }}>Завантажуємо дані...</p>
+          </div>
         ) : (
-          <>
-            {/* СТАТИСТИКА */}
+          <div style={s.contentArea}>
             {tab === 'stats' && stats && (
-              <div style={styles.statsGrid}>
-                <div style={styles.statCard}>
-                  <p style={styles.statNum}>{stats.totalUsers}</p>
-                  <p style={styles.statLabel}>👥 Всього користувачів</p>
+              <div style={s.statsGrid}>
+                <div style={s.statCard}>
+                  <div style={{ ...s.statIconWrap, background: '#eef2ff', color: '#4f46e5' }}>👥</div>
+                  <div style={s.statInfo}>
+                    <p style={s.statLabel}>Всього користувачів</p>
+                    <p style={s.statNum}>{stats.totalUsers}</p>
+                  </div>
                 </div>
-                <div style={styles.statCard}>
-                  <p style={styles.statNum}>{stats.jobSeekers}</p>
-                  <p style={styles.statLabel}>👤 Кандидатів</p>
+                <div style={s.statCard}>
+                  <div style={{ ...s.statIconWrap, background: '#dcfce7', color: '#166534' }}>👤</div>
+                  <div style={s.statInfo}>
+                    <p style={s.statLabel}>Кандидати</p>
+                    <p style={s.statNum}>{stats.jobSeekers}</p>
+                  </div>
                 </div>
-                <div style={styles.statCard}>
-                  <p style={styles.statNum}>{stats.employers}</p>
-                  <p style={styles.statLabel}>🏢 Роботодавців</p>
+                <div style={s.statCard}>
+                  <div style={{ ...s.statIconWrap, background: '#dbeafe', color: '#1e40af' }}>🏢</div>
+                  <div style={s.statInfo}>
+                    <p style={s.statLabel}>Роботодавці</p>
+                    <p style={s.statNum}>{stats.employers}</p>
+                  </div>
                 </div>
-                <div style={styles.statCard}>
-                  <p style={styles.statNum}>{stats.totalVacancies}</p>
-                  <p style={styles.statLabel}>📋 Вакансій</p>
+                <div style={s.statCard}>
+                  <div style={{ ...s.statIconWrap, background: '#fef3c7', color: '#b45309' }}>📋</div>
+                  <div style={s.statInfo}>
+                    <p style={s.statLabel}>Активні вакансії</p>
+                    <p style={s.statNum}>{stats.totalVacancies}</p>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* КОРИСТУВАЧІ */}
             {tab === 'users' && (
-              <div style={styles.tableWrap}>
-                <table style={styles.table}>
-                  <thead>
-                    <tr style={styles.thead}>
-                      <th style={styles.th}>ID</th>
-                      <th style={styles.th}>Ім'я</th>
-                      <th style={styles.th}>Email</th>
-                      <th style={styles.th}>Роль</th>
-                      <th style={styles.th}>Дії</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map(u => (
-                      <tr key={u.id} style={styles.tr}>
-                        <td style={styles.td}>#{u.id}</td>
-                        <td style={styles.td}>{u.firstName} {u.lastName}</td>
-                        <td style={styles.td}>{u.email}</td>
-                        <td style={styles.td}>
-                          <span style={{
-                            padding: '0.2rem 0.6rem',
-                            borderRadius: '999px',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            background: roleBg(u.role),
-                            color: roleColor(u.role)
-                          }}>
-                            {roleLabel(u.role)}
-                          </span>
-                        </td>
-                        <td style={styles.td}>
-                          {u.role !== 'ADMIN' && (
-                            <button style={styles.delBtn}
-                              onClick={() => deleteUser(u.id)}>
-                              🗑 Видалити
-                            </button>
-                          )}
-                        </td>
+              <div style={s.tableCard}>
+                <div style={s.tableHeader}>
+                  <h3 style={s.tableTitle}>Управління користувачами</h3>
+                </div>
+                <div style={s.tableResponsive}>
+                  <table style={s.table}>
+                    <thead>
+                      <tr>
+                        <th style={s.th}>Користувач</th>
+                        <th style={s.th}>Email</th>
+                        <th style={s.th}>Роль</th>
+                        <th style={{...s.th, width: '100px', textAlign: 'right'}}>Дії</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {users.map(u => {
+                        const rb = getRoleBadge(u.role);
+                        return (
+                          <tr key={u.id} style={s.tr}>
+                            <td style={s.td}>
+                              <div style={s.tdUserBox}>
+                                <div style={s.tdAvatar}>{u.firstName?.[0] || 'U'}</div>
+                                <div style={s.tdUserName}>{u.firstName} {u.lastName}</div>
+                              </div>
+                            </td>
+                            <td style={s.td}>{u.email}</td>
+                            <td style={s.td}>
+                              <span style={{ ...s.roleBadge, background: rb.bg, color: rb.color }}>{rb.label}</span>
+                            </td>
+                            <td style={{...s.td, textAlign: 'right'}}>
+                              {u.role !== 'ADMIN' && (
+                                <button style={s.delBtn} onClick={() => deleteUser(u.id)}>🗑</button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
-            {/* ВАКАНСІЇ */}
             {tab === 'vacancies' && (
-              <div style={styles.tableWrap}>
-                <table style={styles.table}>
-                  <thead>
-                    <tr style={styles.thead}>
-                      <th style={styles.th}>ID</th>
-                      <th style={styles.th}>Назва</th>
-                      <th style={styles.th}>Компанія</th>
-                      <th style={styles.th}>Місто</th>
-                      <th style={styles.th}>Роботодавець</th>
-                      <th style={styles.th}>Дії</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {vacancies.map(v => (
-                      <tr key={v.id} style={styles.tr}>
-                        <td style={styles.td}>#{v.id}</td>
-                        <td style={styles.td}>{v.title}</td>
-                        <td style={styles.td}>{v.company}</td>
-                        <td style={styles.td}>{v.location}</td>
-                        <td style={styles.td}>{v.employerEmail}</td>
-                        <td style={styles.td}>
-                          <button style={styles.delBtn}
-                            onClick={() => deleteVacancy(v.id)}>
-                            🗑 Видалити
-                          </button>
-                        </td>
+              <div style={s.tableCard}>
+                <div style={s.tableHeader}>
+                  <h3 style={s.tableTitle}>Управління вакансіями</h3>
+                </div>
+                <div style={s.tableResponsive}>
+                  <table style={s.table}>
+                    <thead>
+                      <tr>
+                        <th style={s.th}>Посада</th>
+                        <th style={s.th}>Компанія</th>
+                        <th style={s.th}>Місто</th>
+                        <th style={s.th}>Автор (Email)</th>
+                        <th style={{...s.th, width: '100px', textAlign: 'right'}}>Дії</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {vacancies.map(v => (
+                        <tr key={v.id} style={s.tr}>
+                          <td style={s.td}>
+                            <div style={s.tdJobTitle}>{v.title}</div>
+                          </td>
+                          <td style={s.td}>{v.company}</td>
+                          <td style={s.td}>{v.location}</td>
+                          <td style={s.td}>{v.employerEmail}</td>
+                          <td style={{...s.td, textAlign: 'right'}}>
+                            <button style={s.delBtn} onClick={() => deleteVacancy(v.id)}>🗑</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>
-  )
+  );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  page: { minHeight: '100vh', background: '#f5f5f5' },
-  nav: { background: 'white', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
-  logo: { fontSize: '1.25rem', fontWeight: 700, color: '#4f46e5' },
-  navRight: { display: 'flex', alignItems: 'center', gap: '1rem' },
-  adminBadge: { background: '#ede9fe', color: '#7c3aed', padding: '0.3rem 0.8rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: 600 },
-  logoutBtn: { padding: '0.4rem 1rem', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', cursor: 'pointer' },
-  container: { maxWidth: '1100px', margin: '2rem auto', padding: '0 1rem' },
-  title: { fontSize: '1.75rem', fontWeight: 800, color: '#1a1a2e', marginBottom: '1.5rem' },
-  tabs: { display: 'flex', gap: 0, marginBottom: '1.5rem', borderBottom: '2px solid #e5e7eb' },
-  tab: { padding: '0.6rem 1.5rem', background: 'none', border: 'none', borderBottom: '3px solid transparent', marginBottom: '-2px', cursor: 'pointer', fontWeight: 500, color: '#6b7280', fontSize: '0.95rem' },
-  tabActive: { padding: '0.6rem 1.5rem', background: 'none', border: 'none', borderBottom: '3px solid #4f46e5', marginBottom: '-2px', cursor: 'pointer', fontWeight: 700, color: '#4f46e5', fontSize: '0.95rem' },
-  center: { textAlign: 'center', color: '#888', marginTop: '3rem' },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1.5rem' },
-  statCard: { background: 'white', borderRadius: '12px', padding: '2rem', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
-  statNum: { fontSize: '3rem', fontWeight: 800, color: '#4f46e5', marginBottom: '0.5rem' },
-  statLabel: { color: '#888', fontSize: '0.9rem' },
-  tableWrap: { background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', overflowX: 'auto' },
-  table: { width: '100%', borderCollapse: 'collapse' },
-  thead: { background: '#f9fafb' },
-  th: { padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.85rem', fontWeight: 600, color: '#555', borderBottom: '1px solid #e5e7eb' },
-  tr: { borderBottom: '1px solid #f3f4f6' },
-  td: { padding: '0.75rem 1rem', fontSize: '0.9rem', color: '#333' },
-  delBtn: { padding: '0.3rem 0.75rem', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 },
-}
+const s: Record<string, React.CSSProperties> = {
+  page: { minHeight: 'calc(100vh - 4rem)', background: '#f8fafc', padding: '3rem 1.5rem' },
+  container: { maxWidth: '1200px', margin: '0 auto' },
+  center: { textAlign: 'center', minHeight: '40vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' },
+  spinner: { width: '40px', height: '40px', border: '3px solid #e5e7eb', borderTop: '3px solid #4f46e5', borderRadius: '50%', animation: 'spin 0.8s linear infinite' },
+
+  header: { marginBottom: '2.5rem' },
+  title: { fontSize: '2.25rem', fontWeight: 800, color: '#111827', margin: '0 0 0.5rem', letterSpacing: '-0.02em' },
+  subtitle: { color: '#6b7280', fontSize: '1.05rem', margin: 0 },
+
+  tabsWrap: { marginBottom: '2rem', borderBottom: '1px solid #e5e7eb' },
+  tabs: { display: 'flex', gap: '2rem', overflowX: 'auto', paddingBottom: '1px' },
+  tab: { 
+    background: 'none', border: 'none', borderBottom: '2px solid transparent', 
+    padding: '0.75rem 0', fontWeight: 600, fontSize: '1rem', color: '#6b7280', 
+    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', transition: 'all 0.2s', whiteSpace: 'nowrap'
+  },
+  tabActive: { color: '#4f46e5', borderBottomColor: '#4f46e5' },
+  tabIcon: { fontSize: '1.2rem' },
+  tabBadge: { background: '#f1f5f9', color: '#475569', fontSize: '0.75rem', padding: '0.15rem 0.6rem', borderRadius: '999px' },
+
+  contentArea: {},
+
+  // Stats
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem' },
+  statCard: { background: 'white', borderRadius: '16px', padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e5e7eb' },
+  statIconWrap: { width: '60px', height: '60px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem' },
+  statInfo: { display: 'flex', flexDirection: 'column' },
+  statLabel: { margin: '0 0 0.25rem', color: '#6b7280', fontSize: '0.9rem', fontWeight: 500 },
+  statNum: { margin: 0, fontSize: '1.75rem', fontWeight: 800, color: '#111827', lineHeight: 1 },
+
+  // Tables
+  tableCard: { background: 'white', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e5e7eb', overflow: 'hidden' },
+  tableHeader: { padding: '1.5rem', borderBottom: '1px solid #e5e7eb', background: '#fafafa' },
+  tableTitle: { margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#111827' },
+  tableResponsive: { overflowX: 'auto' },
+  table: { width: '100%', borderCollapse: 'collapse', textAlign: 'left' },
+  th: { padding: '1rem 1.5rem', fontSize: '0.8rem', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e5e7eb' },
+  tr: { borderBottom: '1px solid #f1f5f9', transition: 'background-color 0.15s' },
+  td: { padding: '1rem 1.5rem', fontSize: '0.95rem', color: '#374151', verticalAlign: 'middle' },
+  
+  tdUserBox: { display: 'flex', alignItems: 'center', gap: '0.75rem' },
+  tdAvatar: { width: '36px', height: '36px', borderRadius: '50%', background: '#e0e7ff', color: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.9rem' },
+  tdUserName: { fontWeight: 600, color: '#111827' },
+  
+  roleBadge: { padding: '0.3rem 0.75rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 700 },
+  
+  tdJobTitle: { fontWeight: 600, color: '#111827' },
+  
+  delBtn: { background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', width: '36px', height: '36px', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', fontSize: '1.1rem' },
+};

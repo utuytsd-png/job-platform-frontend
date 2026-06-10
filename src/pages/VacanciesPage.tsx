@@ -1,268 +1,292 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import api from '../api/axios'
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 
 interface Vacancy {
-  id: number
-  title: string
-  description: string
-  company: string
-  location: string
-  salary: string
-  employmentType: string  
-  employerFirstName: string
-  employerLastName: string
-  employerEmail: string
-  createdAt: string
+  id: number;
+  title: string;
+  company: string;
+  location: string;
+  salary: string;
+  employmentType: string;
+  description: string;
+  requiredSkills: string;
+  createdAt: string;
+}
+
+const EMPLOYMENT_TYPES = ['Всі', 'Повна зайнятість', 'Часткова зайнятість', 'Remote', 'Стажування'];
+
+function getCompanyInitials(name: string) {
+  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+}
+
+function getCompanyColor(name: string) {
+  const colors = [
+    '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b',
+    '#10b981', '#3b82f6', '#ef4444', '#14b8a6',
+  ];
+  let hash = 0;
+  for (const ch of name) hash = ch.charCodeAt(0) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+}
+
+function timeAgo(dateStr: string) {
+  if (!dateStr) return '';
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (diff < 60) return 'Щойно';
+  if (diff < 3600) return `${Math.floor(diff / 60)} хв тому`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} год тому`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)} дн тому`;
+  return new Date(dateStr).toLocaleDateString('uk-UA');
 }
 
 export default function VacanciesPage() {
-  const navigate = useNavigate()
-  const [vacancies, setVacancies] = useState<Vacancy[]>([])
-  const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'all' | 'mine'>('all')
-  const user = JSON.parse(localStorage.getItem('user') || '{}')
-  const [filterLocation, setFilterLocation] = useState('')
-  const [filterType, setFilterType] = useState('')
-  const [filtersOpen, setFiltersOpen] = useState(false)
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [vacancies, setVacancies] = useState<Vacancy[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeType, setActiveType] = useState('Всі');
+  const [locationFilter, setLocationFilter] = useState('');
+  const [hoveredId, setHoveredId] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (!localStorage.getItem('token')) {
-      navigate('/login')
-      return
+  useEffect(() => { fetchVacancies(); }, []);
+
+  const fetchVacancies = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/api/vacancies');
+      setVacancies(Array.isArray(res.data) ? res.data : res.data.content || []);
+    } catch (err) {
+      setError('Не вдалося завантажити вакансії.');
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-    fetchVacancies()
-  }, [])
+  };
 
-    const fetchVacancies = async () => {
-      try {
-        const res = await api.get('/api/vacancies')
-        setVacancies(res.data)
-      } catch (err: any) {
-        console.error('Помилка fetchVacancies:', err.response?.data)  
-      } finally {
-        setLoading(false)
-      }
-    }
-
-  const handleSearch = async () => {
-    if (!search.trim()) { fetchVacancies(); return }
-    const res = await api.get(`/api/vacancies/search?query=${search}`)
-    setVacancies(res.data)
-  }
-
-  const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    navigate('/login')
-  }
-
-  const handleFilter = async () => {
-  setLoading(true)
-  try {
-    const params = new URLSearchParams()
-    if (filterLocation.trim()) params.append('location', filterLocation)
-    if (filterType) params.append('employmentType', filterType)
-
-    if (!filterLocation && !filterType) {
-      await fetchVacancies()
-      return
-    }
-    const res = await api.get(`/api/vacancies/filter?${params}`)
-    setVacancies(res.data)
-  } finally {
-    setLoading(false)
-  }
-}
-
-  const handleResetFilters = async () => {
-    setFilterLocation('')
-    setFilterType('')
-    await fetchVacancies()
-  }
-
-  const displayedVacancies = (user?.role === 'EMPLOYER' && activeTab === 'mine')
-    ? vacancies.filter(v => v.employerEmail === user.email)
-    : vacancies
+  const filtered = vacancies.filter(v => {
+    const matchSearch = v.title.toLowerCase().includes(searchTerm.toLowerCase())
+      || v.company.toLowerCase().includes(searchTerm.toLowerCase())
+      || (v.requiredSkills || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchType = activeType === 'Всі' || v.employmentType === activeType;
+    const matchLocation = !locationFilter || (v.location || '').toLowerCase().includes(locationFilter.toLowerCase());
+    return matchSearch && matchType && matchLocation;
+  });
 
   return (
-    <div style={styles.page}>
-      {/* Navbar */}
-      <nav style={styles.nav}>
-        <span style={styles.logo}>💼 Job Platform</span>
-        <div style={styles.navRight}>
-          <span style={styles.userName}>
-            {user.firstName} {user.lastName} ({user.role === 'EMPLOYER' ? 'Роботодавець' : 'Шукач роботи'})
-          </span>
-{user.role === 'JOB_SEEKER' && (
-  <>
-    <button style={styles.navBtn} onClick={() => navigate('/my-applications')}>
-      Мої відгуки
-    </button>
-    <button style={{...styles.navBtn, background: '#fef3c7', color: '#d97706'}}
-      onClick={() => navigate('/recommendations')}>
-      ⭐ Рекомендації
-    </button>
-  </>
-)}
-<button style={styles.navBtn} onClick={() => navigate('/profile')}>
-  👤 Профіль
-</button>
-<button style={styles.logoutBtn} onClick={handleLogout}>Вийти</button>
-        </div>
-      </nav>
-
-      <div style={styles.container}>
-        {/* Search */}
-        <div style={styles.searchRow}>
-          <input
-            style={styles.searchInput}
-            placeholder="Пошук вакансій..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSearch()}
-          />
-          <button style={styles.searchBtn} onClick={handleSearch}>Знайти</button>
-          {user.role === 'EMPLOYER' && (
-            <button style={styles.createBtn} onClick={() => navigate('/vacancies/create')}>
-              + Додати вакансію
-            </button>
-          )}
-        </div>
-
-        {/* Фільтри */}
-<div style={styles.filterBar}>
-  <button
-    style={styles.filterToggle}
-    onClick={() => setFiltersOpen(!filtersOpen)}>
-    🔽 Фільтри {(filterLocation || filterType) ? '●' : ''}
-  </button>
-</div>
-
-  {filtersOpen && (
-    <div style={styles.filterPanel}>
-      <div style={styles.filterRow}>
-        <div style={styles.filterField}>
-          <label style={styles.filterLabel}>📍 Місто</label>
-          <input
-            style={styles.filterInput}
-            placeholder="Київ, Львів..."
-            value={filterLocation}
-            onChange={e => setFilterLocation(e.target.value)}
-          />
-        </div>
-        <div style={styles.filterField}>
-          <label style={styles.filterLabel}>💼 Тип зайнятості</label>
-          <select style={styles.filterInput} value={filterType}
-            onChange={e => setFilterType(e.target.value)}>
-            <option value="">Всі</option>
-            <option value="Повна зайнятість">Повна зайнятість</option>
-            <option value="Часткова зайнятість">Часткова зайнятість</option>
-            <option value="Remote">Remote</option>
-            <option value="Стажування">Стажування</option>
-          </select>
-        </div>
-      </div>
-      <div style={{ display: 'flex', gap: '0.75rem' }}>
-        <button style={styles.filterBtn} onClick={handleFilter}>
-          Застосувати
-        </button>
-        <button style={styles.resetBtn} onClick={handleResetFilters}>
-          Скинути
-        </button>
-      </div>
-    </div>
-  )}
-
-        {/* Вкладки — тільки для роботодавця */}
-        {user?.role === 'EMPLOYER' && (
-          <div style={styles.tabs}>
-            <button
-              style={activeTab === 'all' ? styles.tabActive : styles.tab}
-              onClick={() => setActiveTab('all')}>
-              🌐 Всі вакансії
-            </button>
-            <button
-              style={activeTab === 'mine' ? styles.tabActive : styles.tab}
-              onClick={() => setActiveTab('mine')}>
-              📋 Мої вакансії
-            </button>
+    <div style={s.page}>
+      {/* Hero */}
+      <div style={s.hero}>
+        <div style={s.heroInner}>
+          <h1 style={s.heroTitle}>Знайди роботу мрії</h1>
+          <p style={s.heroSub}>Тисячі вакансій від кращих компаній України</p>
+          <div style={s.searchWrap}>
+            <div style={s.searchBox}>
+              <span style={s.searchIcon}>🔍</span>
+              <input
+                style={s.searchInput}
+                placeholder="Посада, компанія, навичка..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div style={s.locationBox}>
+              <span style={s.searchIcon}>📍</span>
+              <input
+                style={s.searchInput}
+                placeholder="Місто..."
+                value={locationFilter}
+                onChange={e => setLocationFilter(e.target.value)}
+              />
+            </div>
+            {user?.role === 'EMPLOYER' && (
+              <button style={s.postBtn} onClick={() => navigate('/vacancies/create')}>
+                + Нова вакансія
+              </button>
+            )}
           </div>
-        )}
+        </div>
+      </div>
 
-        {/* List */}
+      {/* Filters */}
+      <div style={s.filtersRow}>
+        <div style={s.filtersInner}>
+          <span style={s.filterLabel}>Тип:</span>
+          {EMPLOYMENT_TYPES.map(t => (
+            <button
+              key={t}
+              style={{ ...s.filterChip, ...(activeType === t ? s.filterChipActive : {}) }}
+              onClick={() => setActiveType(t)}
+            >
+              {t}
+            </button>
+          ))}
+          <span style={s.countBadge}>{filtered.length} вакансій</span>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={s.main}>
         {loading ? (
-          <p style={{ textAlign: 'center' }}>Завантаження...</p>
-        ) : displayedVacancies.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#888' }}>
-            {activeTab === 'mine' ? 'У вас ще немає вакансій' : 'Вакансій поки немає'}
-          </p>
+          <div style={s.center}>
+            <div style={s.spinner} />
+            <p style={{ color: '#6b7280', marginTop: '1rem' }}>Завантажуємо вакансії...</p>
+          </div>
+        ) : error ? (
+          <div style={s.errorBox}>{error}</div>
+        ) : filtered.length === 0 ? (
+          <div style={s.empty}>
+            <div style={{ fontSize: '3rem' }}>🔎</div>
+            <h3 style={{ color: '#374151', margin: '0.5rem 0' }}>Нічого не знайдено</h3>
+            <p style={{ color: '#9ca3af' }}>Спробуйте змінити фільтри або пошуковий запит</p>
+          </div>
         ) : (
-          <div style={styles.grid}>
-            {displayedVacancies.map(v => (
-              <div key={v.id} style={styles.card}>
-                <h3 style={styles.cardTitle}>{v.title}</h3>
-                <p style={styles.company}>🏢 {v.company}</p>
-                <p style={styles.location}>📍 {v.location}</p>
-                {v.salary && <p style={styles.salary}>💰 {v.salary}</p>}
-                {v.employmentType && <p style={styles.empType}>🕐 {v.employmentType}</p>}
-                <p style={styles.description}>
-                  {v.description.length > 150 ? v.description.slice(0, 150) + '...' : v.description}
-                </p>
-                <div style={styles.cardFooter}>
-                  <span style={styles.author}>
-                    {v.employerFirstName} {v.employerLastName}
-                  </span>
-                  <button style={styles.detailBtn} onClick={() => navigate(`/vacancies/${v.id}`)}>
-                    Детальніше →
-                  </button>
+          <div style={s.grid}>
+            {filtered.map(v => {
+              const color = getCompanyColor(v.company);
+              const isHovered = hoveredId === v.id;
+              return (
+                <div
+                  key={v.id}
+                  style={{ ...s.card, ...(isHovered ? s.cardHover : {}) }}
+                  onMouseEnter={() => setHoveredId(v.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                >
+                  {/* Card top */}
+                  <div style={s.cardTop}>
+                    <div style={{ ...s.companyLogo, background: color }}>
+                      {getCompanyInitials(v.company)}
+                    </div>
+                    <div style={s.cardTopRight}>
+                      {v.employmentType && (
+                        <span style={{ ...s.typeBadge, ...getTypeBadgeStyle(v.employmentType) }}>
+                          {v.employmentType}
+                        </span>
+                      )}
+                      {v.createdAt && <span style={s.timeAgo}>{timeAgo(v.createdAt)}</span>}
+                    </div>
+                  </div>
+
+                  {/* Title & company */}
+                  <h3 style={s.cardTitle}>{v.title}</h3>
+                  <p style={s.cardCompany}>{v.company}</p>
+
+                  {/* Location & salary */}
+                  <div style={s.metaRow}>
+                    {v.location && <span style={s.metaChip}>📍 {v.location}</span>}
+                    {v.salary && <span style={{ ...s.metaChip, ...s.salaryChip }}>💰 {v.salary}</span>}
+                  </div>
+
+                  {/* Skills */}
+                  {v.requiredSkills && (
+                    <div style={s.skillsRow}>
+                      {v.requiredSkills.split(',').slice(0, 4).map((sk, i) => (
+                        <span key={i} style={s.skillTag}>{sk.trim()}</span>
+                      ))}
+                      {v.requiredSkills.split(',').length > 4 && (
+                        <span style={s.skillMore}>+{v.requiredSkills.split(',').length - 4}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Description */}
+                  <p style={s.desc}>
+                    {v.description.length > 110 ? v.description.slice(0, 110) + '…' : v.description}
+                  </p>
+
+                  {/* Footer */}
+                  <div style={s.cardFooter}>
+                    <Link to={`/vacancies/${v.id}`} style={{ ...s.applyBtn, background: isHovered ? '#4338ca' : color }}>
+                      Переглянути →
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
     </div>
-  )
+  );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  page: { minHeight: '100vh', background: '#f5f5f5' },
-  nav: { background: 'white', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
-  logo: { fontSize: '1.25rem', fontWeight: 700, color: '#4f46e5' },
-  navRight: { display: 'flex', alignItems: 'center', gap: '1rem' },
-  navBtn: { padding: '0.4rem 1rem', background: '#ede9fe', color: '#4f46e5', border: 'none', borderRadius: '6px', cursor: 'pointer' },
-  userName: { color: '#555', fontSize: '0.9rem' },
-  logoutBtn: { padding: '0.4rem 1rem', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', cursor: 'pointer' },
-  container: { maxWidth: '1100px', margin: '0 auto', padding: '2rem 1rem' },
-  searchRow: { display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' },
-  searchInput: { flex: 1, minWidth: '200px', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '8px', fontSize: '1rem' },
-  searchBtn: { padding: '0.75rem 1.5rem', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' },
-  createBtn: { padding: '0.75rem 1.5rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' },
-  // Вкладки
-  tabs: { display: 'flex', gap: '0', marginBottom: '1.5rem', borderBottom: '2px solid #e5e7eb' },
-  tab: { padding: '0.6rem 1.5rem', background: 'none', border: 'none', borderBottom: '3px solid transparent', marginBottom: '-2px', cursor: 'pointer', fontWeight: 500, color: '#6b7280', fontSize: '1rem' },
-  tabActive: { padding: '0.6rem 1.5rem', background: 'none', border: 'none', borderBottom: '3px solid #4f46e5', marginBottom: '-2px', cursor: 'pointer', fontWeight: 700, color: '#4f46e5', fontSize: '1rem' },
-  // Картки
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' },
-  card: { background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
-  cardTitle: { fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem', color: '#1a1a2e' },
-  company: { color: '#555', marginBottom: '0.25rem' },
-  location: { color: '#555', marginBottom: '0.25rem' },
-  salary: { color: '#10b981', fontWeight: 600, marginBottom: '0.5rem' },
-  description: { color: '#666', fontSize: '0.9rem', marginBottom: '1rem', lineHeight: 1.5 },
-  cardFooter: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  author: { fontSize: '0.8rem', color: '#999' },
-  detailBtn: { padding: '0.4rem 1rem', background: '#ede9fe', color: '#4f46e5', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 },
-  filterBar: { marginBottom: '0.5rem' },
-  filterToggle: { padding: '0.5rem 1rem', background: '#f3f4f6', border: '1px solid #ddd', borderRadius: '8px', cursor: 'pointer', fontWeight: 500 },
-  filterPanel: { background: 'white', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '1.25rem', marginBottom: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' },
-  filterRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' },
-  filterField: { display: 'flex', flexDirection: 'column', gap: '0.4rem' },
-  filterLabel: { fontSize: '0.85rem', fontWeight: 500, color: '#555' },
-  filterInput: { padding: '0.6rem', border: '1px solid #ddd', borderRadius: '8px', fontSize: '0.95rem' },
-  filterBtn: { padding: '0.6rem 1.5rem', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 },
-  empType: { color: '#6366f1', fontSize: '0.85rem', marginBottom: '0.5rem' },
-  resetBtn: { padding: '0.6rem 1.5rem', background: '#f3f4f6', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer' },
+function getTypeBadgeStyle(type: string): React.CSSProperties {
+  switch (type) {
+    case 'Remote': return { background: '#dbeafe', color: '#1d4ed8' };
+    case 'Стажування': return { background: '#fef3c7', color: '#b45309' };
+    case 'Часткова зайнятість': return { background: '#f3e8ff', color: '#7c3aed' };
+    default: return { background: '#dcfce7', color: '#15803d' };
+  }
 }
+
+const s: Record<string, React.CSSProperties> = {
+  page: { minHeight: '100vh', background: '#f8fafc', fontFamily: "'Inter', system-ui, sans-serif" },
+
+  // Hero
+  hero: {
+    background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%)',
+    padding: '4rem 1.5rem 3rem',
+  },
+  heroInner: { maxWidth: '900px', margin: '0 auto', textAlign: 'center' },
+  heroTitle: { fontSize: 'clamp(1.75rem, 4vw, 3rem)', fontWeight: 800, color: '#fff', margin: '0 0 0.75rem', letterSpacing: '-0.02em' },
+  heroSub: { color: '#c7d2fe', fontSize: '1.1rem', margin: '0 0 2rem' },
+  searchWrap: { display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '700px', margin: '0 auto' },
+  searchBox: { flex: 2, minWidth: '220px', display: 'flex', alignItems: 'center', background: 'white', borderRadius: '10px', padding: '0 1rem', boxShadow: '0 4px 24px rgba(0,0,0,0.15)' },
+  locationBox: { flex: 1, minWidth: '140px', display: 'flex', alignItems: 'center', background: 'white', borderRadius: '10px', padding: '0 1rem', boxShadow: '0 4px 24px rgba(0,0,0,0.15)' },
+  searchIcon: { fontSize: '1.1rem', marginRight: '0.5rem', opacity: 0.5 },
+  searchInput: { flex: 1, border: 'none', outline: 'none', fontSize: '1rem', padding: '0.875rem 0', background: 'transparent', color: '#1f2937' },
+  postBtn: { background: '#a78bfa', color: 'white', border: 'none', borderRadius: '10px', padding: '0.875rem 1.5rem', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 12px rgba(167,139,250,0.4)' },
+
+  // Filters
+  filtersRow: { background: 'white', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 10 },
+  filtersInner: { maxWidth: '1200px', margin: '0 auto', padding: '0.75rem 1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' },
+  filterLabel: { color: '#6b7280', fontSize: '0.875rem', fontWeight: 500, marginRight: '0.25rem' },
+  filterChip: { border: '1px solid #e5e7eb', background: 'white', borderRadius: '999px', padding: '0.35rem 0.9rem', fontSize: '0.85rem', cursor: 'pointer', color: '#374151', fontWeight: 500, transition: 'all 0.15s' },
+  filterChipActive: { background: '#4f46e5', color: 'white', border: '1px solid #4f46e5' },
+  countBadge: { marginLeft: 'auto', background: '#f3f4f6', color: '#6b7280', borderRadius: '999px', padding: '0.25rem 0.75rem', fontSize: '0.8rem', fontWeight: 600 },
+
+  // Main
+  main: { maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.25rem' },
+
+  // Card
+  card: {
+    background: 'white', borderRadius: '16px', padding: '1.5rem',
+    border: '1px solid #e5e7eb', cursor: 'pointer',
+    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+    display: 'flex', flexDirection: 'column', gap: '0.75rem',
+  },
+  cardHover: { transform: 'translateY(-4px)', boxShadow: '0 12px 40px rgba(79,70,229,0.12)', borderColor: '#c7d2fe' },
+
+  // Card content
+  cardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
+  companyLogo: { width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '1.1rem', letterSpacing: '0.05em', flexShrink: 0 },
+  cardTopRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' },
+  typeBadge: { borderRadius: '999px', padding: '0.2rem 0.65rem', fontSize: '0.75rem', fontWeight: 600 },
+  timeAgo: { color: '#9ca3af', fontSize: '0.75rem' },
+
+  cardTitle: { margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#111827', lineHeight: 1.35 },
+  cardCompany: { margin: 0, color: '#6b7280', fontSize: '0.9rem' },
+
+  metaRow: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' },
+  metaChip: { background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '0.25rem 0.6rem', fontSize: '0.8rem', color: '#4b5563' },
+  salaryChip: { background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', fontWeight: 600 },
+
+  skillsRow: { display: 'flex', flexWrap: 'wrap', gap: '0.4rem' },
+  skillTag: { background: '#eef2ff', color: '#4f46e5', borderRadius: '5px', padding: '0.2rem 0.55rem', fontSize: '0.78rem', fontWeight: 500 },
+  skillMore: { background: '#f3f4f6', color: '#6b7280', borderRadius: '5px', padding: '0.2rem 0.55rem', fontSize: '0.78rem' },
+
+  desc: { margin: 0, color: '#6b7280', fontSize: '0.875rem', lineHeight: 1.6, flex: 1 },
+
+  cardFooter: { marginTop: '0.25rem', display: 'flex', justifyContent: 'flex-end' },
+  applyBtn: { display: 'inline-block', color: 'white', textDecoration: 'none', padding: '0.55rem 1.25rem', borderRadius: '8px', fontSize: '0.875rem', fontWeight: 600, transition: 'background 0.2s' },
+
+  // States
+  center: { textAlign: 'center', padding: '4rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  spinner: { width: '40px', height: '40px', border: '3px solid #e5e7eb', borderTop: '3px solid #4f46e5', borderRadius: '50%', animation: 'spin 0.8s linear infinite' },
+  empty: { textAlign: 'center', padding: '5rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' },
+  errorBox: { background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '1rem', borderRadius: '10px', textAlign: 'center', maxWidth: '500px', margin: '2rem auto' },
+};
