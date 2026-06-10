@@ -96,9 +96,15 @@ export default function VacanciesPage() {
             {user.firstName} {user.lastName} ({user.role === 'EMPLOYER' ? 'Роботодавець' : 'Шукач роботи'})
           </span>
 {user.role === 'JOB_SEEKER' && (
-  <button style={styles.navBtn} onClick={() => navigate('/my-applications')}>
-    Мої відгуки
-  </button>
+  <>
+    <button style={styles.navBtn} onClick={() => navigate('/my-applications')}>
+      Мої відгуки
+    </button>
+    <button style={{...styles.navBtn, background: '#fef3c7', color: '#d97706'}}
+      onClick={() => navigate('/recommendations')}>
+      ⭐ Рекомендації
+    </button>
+  </>
 )}
 <button style={styles.navBtn} onClick={() => navigate('/profile')}>
   👤 Профіль

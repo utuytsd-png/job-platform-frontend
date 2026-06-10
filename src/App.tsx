@@ -8,6 +8,10 @@ import MyApplicationsPage from './pages/MyApplicationsPage'
 import VacancyApplicationsPage from './pages/VacancyApplicationsPage'
 import EditVacancyPage from './pages/EditVacancyPage'
 import ProfilePage from './pages/ProfilePage'
+import RecommendationsPage from './pages/RecommendationsPage'
+import AdminPage from './pages/AdminPage'
+
+
 
 
 
@@ -25,6 +29,8 @@ function App() {
         <Route path="/vacancies/:id/applications" element={<VacancyApplicationsPage />} />
         <Route path="/vacancies/:id/edit" element={<EditVacancyPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/recommendations" element={<RecommendationsPage />} />
+        <Route path="/admin" element={<AdminPage />} />
 
       </Routes>
     </BrowserRouter>
