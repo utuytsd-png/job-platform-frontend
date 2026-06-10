@@ -105,15 +105,18 @@ export default function VacancyDetailPage() {
           </div>
         )}
 
-  {user.role === 'EMPLOYER' && (
+{user.role === 'EMPLOYER' && (
   <div style={styles.card}>
-    <h2 style={styles.sectionTitle}>Заявки на цю вакансію</h2>
-    <button
-      style={styles.button}
-      onClick={() => navigate(`/vacancies/${id}/applications`)}
-    >
-      Переглянути всі заявки →
-    </button>
+    <h2 style={styles.sectionTitle}>Керування вакансією</h2>
+    <div style={{ display: 'flex', gap: '1rem' }}>
+      <button style={styles.button} onClick={() => navigate(`/vacancies/${id}/edit`)}>
+        ✏️ Редагувати вакансію
+      </button>
+      <button style={{...styles.button, background: '#ef4444'}}
+        onClick={() => navigate(`/vacancies/${id}/applications`)}>
+        📋 Переглянути заявки
+      </button>
+    </div>
   </div>
 )}
       </div>
